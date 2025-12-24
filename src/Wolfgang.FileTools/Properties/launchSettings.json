@@ -1,0 +1,12 @@
+{
+    "profiles": {
+        "<no options>": {
+            "commandName": "Project",
+            "commandLineArgs": ""
+        },
+        "-?": {
+            "commandName": "Project",
+            "commandLineArgs": "-?"
+        }
+    }
+}
