@@ -17,7 +17,7 @@ namespace Wolfgang.FileTools;
 
     ResponseFileHandling = ResponseFileHandling.ParseArgsAsLineSeparated
 )]
-
+[Subcommand(typeof(SplitCommand))]
 
 internal class Program
 {
