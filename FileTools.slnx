@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wolfgang.FileTools/Wolfgang.FileTools.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Wolfgang.FileTools.Tests.Integration/Wolfgang.FileTools.Tests.Integration.csproj" />
+  </Folder>
+</Solution>
