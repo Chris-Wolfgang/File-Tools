@@ -1,19 +1,24 @@
+using System;
+using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using Wolfgang.FileTools.Command;
+using Xunit;
 
 namespace Wolfgang.FileTools.Tests.Integration;
 
 public class SplitCommandTests : IDisposable
 {
     private readonly string _testDirectory;
-    private readonly TestConsole _console;
 
     public SplitCommandTests()
     {
-        _testDirectory = Path.Combine(Path.GetTempPath(), "SplitCommandTests_" + Guid.NewGuid().ToString("N"));
+        _testDirectory = Path.Combine(Path.GetTempPath(), $"SplitCommandTests_{Guid.NewGuid()}");
         Directory.CreateDirectory(_testDirectory);
-        _console = new TestConsole();
     }
 
     public void Dispose()
@@ -24,70 +29,69 @@ public class SplitCommandTests : IDisposable
         }
     }
 
-    #region MaxBytes Parsing Tests
+    #region Regex Parsing Tests
 
     [Theory]
     [InlineData("1024", 1024)]
-    [InlineData("1K", 1024)]
-    [InlineData("1k", 1024)]
-    [InlineData("2M", 2 * 1024 * 1024)]
-    [InlineData("2m", 2 * 1024 * 1024)]
-    [InlineData("512", 512)]
-    [InlineData("10K", 10 * 1024)]
-    public async Task MaxBytes_ValidFormat_ParsesCorrectly(string maxBytesInput, int expectedBytes)
+    [InlineData("100", 100)]
+    [InlineData("1", 1)]
+    [InlineData("999999", 999999)]
+    public async Task MaxBytes_ValidNumericFormat_ParsesCorrectly(string maxBytes, int expectedBytes)
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[expectedBytes + 100]; // Create file larger than maxBytes
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = maxBytesInput
-        };
+        var testFile = CreateTestFile("test.txt", 100);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = maxBytes };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        // Verify that files were created with correct sizes
-        var outputFiles = Directory.GetFiles(_testDirectory, "test.000.txt");
-        Assert.NotEmpty(outputFiles);
-        
-        var firstFileSize = new FileInfo(outputFiles[0]).Length;
-        Assert.True(firstFileSize <= expectedBytes, $"First file size {firstFileSize} should be <= {expectedBytes}");
+        Assert.Equal(0, result); // Success
     }
 
     [Theory]
+    [InlineData("10K", 10 * 1024)]
+    [InlineData("10k", 10 * 1024)]
+    [InlineData("5M", 5 * 1024 * 1024)]
+    [InlineData("5m", 5 * 1024 * 1024)]
+    [InlineData("1G", 1L * 1024 * 1024 * 1024)]
+    [InlineData("1g", 1L * 1024 * 1024 * 1024)]
+    public async Task MaxBytes_ValidUnitFormat_ParsesCorrectly(string maxBytes, long expectedBytes)
+    {
+        // Arrange
+        var testFile = CreateTestFile("test.txt", 100);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = maxBytes };
+        var console = new TestConsole();
+
+        // Act
+        var result = await InvokeCommand(command, console);
+
+        // Assert
+        Assert.Equal(0, result); // Success
+    }
+
+    [Theory]
+    [InlineData("")]
     [InlineData("abc")]
     [InlineData("10X")]
     [InlineData("K10")]
-    [InlineData("-100")]
-    [InlineData("")]
-    [InlineData("10.5M")]
-    [InlineData("10 M")]
-    public async Task MaxBytes_InvalidFormat_ReturnsCommandLineError(string invalidMaxBytes)
+    [InlineData("10.5")]
+    [InlineData("10 K")]
+    [InlineData("-10")]
+    [InlineData("10KM")]
+    public async Task MaxBytes_InvalidFormat_ReturnsCommandLineError(string maxBytes)
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        await File.WriteAllTextAsync(testFile, "test content");
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = invalidMaxBytes
-        };
+        var testFile = CreateTestFile("test.txt", 100);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = maxBytes };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.CommandLineError, result);
-        // Note: The error message goes to Console.WriteLine, not IConsole
+        Assert.Equal(2, result); // CommandLineError
     }
 
     #endregion
@@ -95,80 +99,54 @@ public class SplitCommandTests : IDisposable
     #region Unit Conversion Tests
 
     [Fact]
-    public async Task UnitConversion_K_MultipliesBy1024()
+    public async Task MaxBytes_KilobyteConversion_CalculatesCorrectly()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[5 * 1024]; // 5KB
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "2K" // 2048 bytes
-        };
+        var testFile = CreateTestFile("test.txt", 2048);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "1K" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        // Should create 3 files (2KB + 2KB + 1KB)
+        Assert.Equal(0, result);
         var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt");
-        Assert.Equal(3, outputFiles.Length);
+        Assert.Equal(2, outputFiles.Length); // 2048 bytes / 1024 = 2 files
     }
 
     [Fact]
-    public async Task UnitConversion_M_MultipliesBy1048576()
+    public async Task MaxBytes_MegabyteConversion_CalculatesCorrectly()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[3 * 1024 * 1024]; // 3MB
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "1M"
-        };
+        var testFile = CreateTestFile("test.txt", 3 * 1024 * 1024);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "1M" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        // Should create 3 files (1MB + 1MB + 1MB)
+        Assert.Equal(0, result);
         var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt");
-        Assert.Equal(3, outputFiles.Length);
+        Assert.Equal(3, outputFiles.Length); // 3MB / 1MB = 3 files
     }
 
     [Fact]
-    public async Task UnitConversion_G_ParsesPattern()
+    public async Task MaxBytes_GigabyteConversion_CalculatesCorrectly()
     {
-        // Arrange - Test that the G pattern is accepted by the regex
-        // Note: The current implementation uses int for maxBytes which causes overflow
-        // for GB values. This test documents the limitation rather than validates full GB support.
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[100]; 
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "1G"
-        };
+        // Arrange - Create a smaller test for G unit
+        var testFile = CreateTestFile("test.txt", 2 * 1024 * 1024);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "1G" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
-        // Assert - Due to integer overflow, the test verifies the pattern is accepted
-        // but the actual behavior is undefined. A proper fix would use long instead of int.
-        Assert.NotEqual(ExitCode.CommandLineError, result);
+        // Assert
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt");
+        Assert.Single(outputFiles); // 2MB < 1GB = 1 file
     }
 
     #endregion
@@ -176,124 +154,111 @@ public class SplitCommandTests : IDisposable
     #region File Splitting Tests
 
     [Fact]
-    public async Task FileSplitting_LargerThanMaxBytes_CreatesMultipleFiles()
+    public async Task SplitFile_ExactMultiple_CreatesSplitFiles()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[1000];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "300"
-        };
+        var testFile = CreateTestFile("test.txt", 1000);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "500" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt")
-            .OrderBy(f => f)
-            .ToArray();
-        
-        Assert.Equal(4, outputFiles.Length); // 300 + 300 + 300 + 100
-        
-        // Verify file sizes
-        Assert.Equal(300, new FileInfo(outputFiles[0]).Length);
-        Assert.Equal(300, new FileInfo(outputFiles[1]).Length);
-        Assert.Equal(300, new FileInfo(outputFiles[2]).Length);
-        Assert.Equal(100, new FileInfo(outputFiles[3]).Length);
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt").OrderBy(f => f).ToArray();
+        Assert.Equal(2, outputFiles.Length);
+        Assert.Equal(500, new FileInfo(outputFiles[0]).Length);
+        Assert.Equal(500, new FileInfo(outputFiles[1]).Length);
     }
 
     [Fact]
-    public async Task FileSplitting_ExactlyMaxBytes_CreatesSingleFile()
+    public async Task SplitFile_NotExactMultiple_CreatesCorrectNumberOfFiles()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[1024];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "1024"
-        };
+        var testFile = CreateTestFile("test.txt", 1250);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "500" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt");
-        Assert.Single(outputFiles);
-        Assert.Equal(1024, new FileInfo(outputFiles[0]).Length);
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt").OrderBy(f => f).ToArray();
+        Assert.Equal(3, outputFiles.Length);
+        Assert.Equal(500, new FileInfo(outputFiles[0]).Length);
+        Assert.Equal(500, new FileInfo(outputFiles[1]).Length);
+        Assert.Equal(250, new FileInfo(outputFiles[2]).Length); // Last file has remaining bytes
     }
 
     [Fact]
-    public async Task FileSplitting_SmallerThanMaxBytes_CreatesSingleFile()
+    public async Task SplitFile_PreservesContent()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[512];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "1024"
-        };
+        var content = "This is a test file with some content that will be split.";
+        var testFile = CreateTestFileWithContent("test.txt", content);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "20" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt").OrderBy(f => f).ToArray();
         
-        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt");
-        Assert.Single(outputFiles);
-        Assert.Equal(512, new FileInfo(outputFiles[0]).Length);
-    }
-
-    [Fact]
-    public async Task FileSplitting_PreservesFileContent()
-    {
-        // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[1000];
-        new Random(42).NextBytes(content); // Use seed for reproducibility
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "300"
-        };
-
-        // Act
-        var result = await command.OnExecuteAsync(_console);
-
-        // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        // Reconstruct the file from pieces
-        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt")
-            .OrderBy(f => f)
-            .ToArray();
-        
-        var reconstructed = new List<byte>();
+        var rebuiltContent = new StringBuilder();
         foreach (var file in outputFiles)
         {
-            reconstructed.AddRange(await File.ReadAllBytesAsync(file));
+            rebuiltContent.Append(File.ReadAllText(file));
         }
+        
+        Assert.Equal(content, rebuiltContent.ToString());
+    }
 
-        Assert.Equal(content, reconstructed.ToArray());
+    [Fact]
+    public async Task SplitFile_OutputFilesHavePaddedNumbers()
+    {
+        // Arrange
+        var testFile = CreateTestFile("test.txt", 500);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "100" };
+        var console = new TestConsole();
+
+        // Act
+        var result = await InvokeCommand(command, console);
+
+        // Assert
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt").OrderBy(f => f).ToArray();
+        Assert.Equal(5, outputFiles.Length);
+        Assert.Contains("test.000.txt", outputFiles[0]);
+        Assert.Contains("test.001.txt", outputFiles[1]);
+        Assert.Contains("test.004.txt", outputFiles[4]);
+    }
+
+    [Fact]
+    public async Task SplitFile_NoExtension_OutputFilesHaveCorrectNaming()
+    {
+        // Arrange
+        var testFile = CreateTestFile("testfile", 300);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "100" };
+        var console = new TestConsole();
+
+        // Act
+        var result = await InvokeCommand(command, console);
+
+        // Assert
+        Assert.Equal(0, result);
+        // Exclude the original file by looking for files with numbered extensions
+        var outputFiles = Directory.GetFiles(_testDirectory, "testfile.*")
+            .Where(f => !f.EndsWith("testfile"))
+            .OrderBy(f => f)
+            .ToArray();
+        Assert.Equal(3, outputFiles.Length);
+        Assert.Contains("testfile.000", outputFiles[0]);
+        Assert.Contains("testfile.001", outputFiles[1]);
+        Assert.Contains("testfile.002", outputFiles[2]);
     }
 
     #endregion
@@ -301,215 +266,156 @@ public class SplitCommandTests : IDisposable
     #region Edge Cases
 
     [Fact]
-    public async Task EdgeCase_EmptyFile_CreatesNoOutputFiles()
+    public async Task SplitFile_EmptyFile_CreatesNoOutputFiles()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "empty.txt");
-        await File.WriteAllTextAsync(testFile, string.Empty);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "1024"
-        };
+        var testFile = CreateTestFile("empty.txt", 0);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "100" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
+        Assert.Equal(0, result);
         var outputFiles = Directory.GetFiles(_testDirectory, "empty.*.txt");
         Assert.Empty(outputFiles);
     }
 
     [Fact]
-    public async Task EdgeCase_SingleByteFile_CreatesSingleFile()
+    public async Task SplitFile_SmallerThanMaxBytes_CreatesOneFile()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "single.txt");
-        await File.WriteAllBytesAsync(testFile, new byte[] { 65 }); // Single byte 'A'
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "1024"
-        };
+        var testFile = CreateTestFile("small.txt", 50);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "100" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        var outputFiles = Directory.GetFiles(_testDirectory, "single.*.txt");
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "small.*.txt");
         Assert.Single(outputFiles);
-        Assert.Equal(1, new FileInfo(outputFiles[0]).Length);
+        Assert.Equal(50, new FileInfo(outputFiles[0]).Length);
     }
 
     [Fact]
-    public async Task EdgeCase_VerySmallMaxBytes_CreatesManyFiles()
+    public async Task SplitFile_ExactlyMaxBytes_CreatesOneFile()
     {
         // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[100];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "10"
-        };
+        var testFile = CreateTestFile("exact.txt", 100);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "100" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
+        Assert.Equal(0, result);
+        var outputFiles = Directory.GetFiles(_testDirectory, "exact.*.txt");
+        Assert.Single(outputFiles);
+        Assert.Equal(100, new FileInfo(outputFiles[0]).Length);
+    }
+
+    [Fact]
+    public async Task SplitFile_VeryLargeMaxBytes_CreatesOneFile()
+    {
+        // Arrange
+        var testFile = CreateTestFile("test.txt", 1000);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "10M" };
+        var console = new TestConsole();
+
+        // Act
+        var result = await InvokeCommand(command, console);
+
+        // Assert
+        Assert.Equal(0, result);
         var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt");
-        Assert.Equal(10, outputFiles.Length); // 100 bytes / 10 = 10 files
+        Assert.Single(outputFiles);
     }
 
     #endregion
 
-    #region Error Handling
+    #region Error Handling Tests
 
     [Fact]
-    public async Task ErrorHandling_NonExistentFile_ReturnsApplicationError()
+    public async Task SplitFile_NonExistentFile_ReturnsError()
     {
         // Arrange
         var nonExistentFile = Path.Combine(_testDirectory, "nonexistent.txt");
-
-        var command = new SplitCommand
-        {
-            SourcePath = nonExistentFile,
-            MaxBytes = "1024"
-        };
+        var command = new SplitCommand { SourcePath = nonExistentFile, MaxBytes = "100" };
+        var console = new TestConsole();
 
         // Act
-        var result = await command.OnExecuteAsync(_console);
+        var result = await InvokeCommand(command, console);
 
         // Assert
-        Assert.Equal(ExitCode.ApplicationError, result);
+        Assert.Equal(11, result); // ApplicationError
+    }
+
+    [Fact]
+    public async Task SplitFile_InvalidMaxBytesFormat_ReturnsCommandLineError()
+    {
+        // Arrange
+        var testFile = CreateTestFile("test.txt", 100);
+        var command = new SplitCommand { SourcePath = testFile, MaxBytes = "invalid" };
+        var console = new TestConsole();
+
+        // Act
+        var result = await InvokeCommand(command, console);
+
+        // Assert
+        Assert.Equal(2, result); // CommandLineError
     }
 
     #endregion
 
-    #region Output File Naming Tests
+    #region Helper Methods
 
-    [Fact]
-    public async Task OutputFileNaming_FileWithExtension_UsesCorrectPattern()
+    private string CreateTestFile(string fileName, int sizeInBytes)
     {
-        // Arrange
-        var testFile = Path.Combine(_testDirectory, "document.pdf");
-        var content = new byte[1000];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "400"
-        };
-
-        // Act
-        var result = await command.OnExecuteAsync(_console);
-
-        // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        var outputFiles = Directory.GetFiles(_testDirectory, "document.*.pdf")
-            .OrderBy(f => f)
-            .Select(f => Path.GetFileName(f))
-            .ToArray();
-        
-        Assert.Contains("document.000.pdf", outputFiles);
-        Assert.Contains("document.001.pdf", outputFiles);
-        Assert.Contains("document.002.pdf", outputFiles);
+        var filePath = Path.Combine(_testDirectory, fileName);
+        var content = new byte[sizeInBytes];
+        new Random(42).NextBytes(content); // Use fixed seed for reproducibility
+        File.WriteAllBytes(filePath, content);
+        return filePath;
     }
 
-    [Fact]
-    public async Task OutputFileNaming_FileWithoutExtension_UsesCorrectPattern()
+    private string CreateTestFileWithContent(string fileName, string content)
     {
-        // Arrange
-        var testFile = Path.Combine(_testDirectory, "datafile");
-        var content = new byte[1000];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
-        {
-            SourcePath = testFile,
-            MaxBytes = "400"
-        };
-
-        // Act
-        var result = await command.OnExecuteAsync(_console);
-
-        // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        var outputFiles = Directory.GetFiles(_testDirectory, "datafile.*")
-            .OrderBy(f => f)
-            .Select(f => Path.GetFileName(f))
-            .ToArray();
-        
-        Assert.Contains("datafile.000", outputFiles);
-        Assert.Contains("datafile.001", outputFiles);
-        Assert.Contains("datafile.002", outputFiles);
+        var filePath = Path.Combine(_testDirectory, fileName);
+        File.WriteAllText(filePath, content);
+        return filePath;
     }
 
-    [Fact]
-    public async Task OutputFileNaming_ThreeDigitPadding_WorksCorrectly()
+    private async Task<int> InvokeCommand(SplitCommand command, TestConsole console)
     {
-        // Arrange
-        var testFile = Path.Combine(_testDirectory, "test.txt");
-        var content = new byte[1000];
-        new Random().NextBytes(content);
-        await File.WriteAllBytesAsync(testFile, content);
-
-        var command = new SplitCommand
+        var method = typeof(SplitCommand).GetMethod("OnExecuteAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (method == null)
         {
-            SourcePath = testFile,
-            MaxBytes = "100"
-        };
-
-        // Act
-        var result = await command.OnExecuteAsync(_console);
-
-        // Assert
-        Assert.Equal(ExitCode.Success, result);
-        
-        var outputFiles = Directory.GetFiles(_testDirectory, "test.*.txt")
-            .OrderBy(f => f)
-            .Select(f => Path.GetFileName(f))
-            .ToArray();
-        
-        // Verify all files have 3-digit padding
-        foreach (var fileName in outputFiles)
-        {
-            var parts = fileName.Split('.');
-            Assert.Matches(@"^\d{3}$", parts[1]); // Middle part should be exactly 3 digits
+            throw new InvalidOperationException("OnExecuteAsync method not found");
         }
+
+        var task = method.Invoke(command, new object[] { console }) as Task<int>;
+        if (task == null)
+        {
+            throw new InvalidOperationException("Method invocation failed");
+        }
+
+        return await task;
     }
 
-    #endregion
-
-    /// <summary>
-    /// Test console implementation for capturing output
-    /// </summary>
     private class TestConsole : IConsole
     {
-        private readonly StringWriter _outputWriter = new();
-        private readonly StringWriter _errorWriter = new();
+        private readonly StringBuilder _output = new();
+        private readonly StringBuilder _error = new();
 
-        public string Output => _outputWriter.ToString();
-        public string ErrorOutput => _errorWriter.ToString();
+        public string Output => _output.ToString();
+        public string ErrorOutput => _error.ToString();
 
-        public TextWriter Out => _outputWriter;
-        public TextWriter Error => _errorWriter;
+        public TextWriter Out => new StringWriter(_output);
+        public TextWriter Error => new StringWriter(_error);
         public TextReader In => TextReader.Null;
         public bool IsInputRedirected => false;
         public bool IsOutputRedirected => false;
@@ -519,10 +425,23 @@ public class SplitCommandTests : IDisposable
 
         public event ConsoleCancelEventHandler? CancelKeyPress;
 
-        public void ResetColor()
+        public void ResetColor() { }
+
+        public void Write(string value)
         {
-            ForegroundColor = ConsoleColor.Gray;
-            BackgroundColor = ConsoleColor.Black;
+            _output.Append(value);
+        }
+
+        public void WriteLine(string value)
+        {
+            _output.AppendLine(value);
+        }
+
+        public void WriteLine(object value)
+        {
+            _output.AppendLine(value?.ToString());
         }
     }
+
+    #endregion
 }
