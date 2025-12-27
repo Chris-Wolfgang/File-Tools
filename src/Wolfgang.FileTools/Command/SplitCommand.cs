@@ -48,11 +48,11 @@ internal class SplitCommand
             var match = regex.Match(MaxBytes!);
             if (!match.Success)
             {
-                Console.WriteLine("MaxBytes is not in a valid format.");
+                Console.WriteLine("MaxBytes must be a number optionally followed by K, M, or G (e.g., 20M for 20 megabytes).");
                 return ExitCode.CommandLineError;
             }
 
-            var maxBytes = int.Parse(match.Groups["bytes"].Value);
+            long maxBytes = int.Parse(match.Groups["bytes"].Value);
             var units = match.Groups["units"].Value.ToUpperInvariant();
             switch (units)
             {
@@ -67,8 +67,13 @@ internal class SplitCommand
                     break;
             }
 
+            if (maxBytes <= 0)
+            {
+                console.WriteLine("MaxBytes must be greater than zero.");
+                return ExitCode.CommandLineError;
+            }
             var pieceCount = 0;
-            var bytesReadCount = 0;
+            var bytesReadCount = 0L;
 
             await using var reader = File.OpenRead(SourcePath);
 
