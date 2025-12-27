@@ -27,7 +27,7 @@ internal static class ConsoleColors
         public static readonly string Gray = "\e[100m";
         public static readonly string LightRed = "\e[101m";
         public static readonly string LightGreen = "\e[102m";
-        public static readonly string LightYellow = "\e[1033m";
+        public static readonly string LightYellow = "\e[103m";
         public static readonly string LightBlue = "\e[104m";
         public static readonly string LightMagenta = "\e[105m";
         public static readonly string LightCyan = "\e[106m";
