@@ -24,6 +24,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Wolfgang.FileTools.Tests.Integration" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\..\..\ReadMe.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
