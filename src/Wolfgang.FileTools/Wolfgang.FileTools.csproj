@@ -5,22 +5,22 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-	<PackageVersion>0.1.0</PackageVersion>
-	<LangVersion>latest</LangVersion>
-	<Copyright>Copyright 2025 Chris Wolfgang</Copyright>
-	<Description>A template for building console applications with command line parsing, logging, dependancy injection, error handling </Description>
-	<Author>Chris Wolfgang</Author>
-	<Authors>Chris Wolfgang</Authors>
-	<PackageReadmeFile>ReadMe.md</PackageReadmeFile>
-	<RepositoryUrl>https://github.com/Chris-Wolfgang/console-app-template</RepositoryUrl>
-	<RepositoryType>https://github.com/Chris-Wolfgang/console-app-template</RepositoryType>
-	<PackageIcon></PackageIcon>
-	<ApplicationIcon></ApplicationIcon>
-	<GenerateDocumentationFile>True</GenerateDocumentationFile>
-	<Title>Wolfgang File Tools</Title>
-	<PackageProjectUrl>https://github.com/Chris-Wolfgang/File-Tools</PackageProjectUrl>
-	<AssemblyName>file-tools</AssemblyName>
-	<AssemblyTitle>Wolfgang File Tools</AssemblyTitle>
+    <PackageVersion>0.1.0</PackageVersion>
+    <LangVersion>latest</LangVersion>
+    <Copyright>Copyright 2025 Chris Wolfgang</Copyright>
+    <Description>A template for building console applications with command line parsing, logging, dependancy injection, error handling </Description>
+    <Author>Chris Wolfgang</Author>
+    <Authors>Chris Wolfgang</Authors>
+    <PackageReadmeFile>ReadMe.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/Chris-Wolfgang/console-app-template</RepositoryUrl>
+    <RepositoryType>https://github.com/Chris-Wolfgang/console-app-template</RepositoryType>
+    <PackageIcon></PackageIcon>
+    <ApplicationIcon></ApplicationIcon>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <Title>Wolfgang File Tools</Title>
+    <PackageProjectUrl>https://github.com/Chris-Wolfgang/File-Tools</PackageProjectUrl>
+    <AssemblyName>file-tools</AssemblyName>
+    <AssemblyTitle>Wolfgang File Tools</AssemblyTitle>
   </PropertyGroup>
 
   <ItemGroup>
