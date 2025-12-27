@@ -48,7 +48,7 @@ internal class SplitCommand
             var match = regex.Match(MaxBytes!);
             if (!match.Success)
             {
-                Console.WriteLine("MaxBytes is not in a valid format.");
+                Console.WriteLine("MaxBytes must be a number optionally followed by K, M, or G (e.g., 20M for 20 megabytes).");
                 return ExitCode.CommandLineError;
             }
 
