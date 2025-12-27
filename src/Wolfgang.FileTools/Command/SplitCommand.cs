@@ -67,6 +67,11 @@ internal class SplitCommand
                     break;
             }
 
+            if (maxBytes <= 0)
+            {
+                console.WriteLine("MaxBytes must be greater than zero.");
+                return ExitCode.CommandLineError;
+            }
             var pieceCount = 0;
             var bytesReadCount = 0;
 
