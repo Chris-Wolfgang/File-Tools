@@ -20,4 +20,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Wolfgang.FileTools\Wolfgang.FileTools.csproj" />
+  </ItemGroup>
+
 </Project>
