@@ -52,7 +52,7 @@ internal class SplitCommand
                 return ExitCode.CommandLineError;
             }
 
-            var maxBytes = int.Parse(match.Groups["bytes"].Value);
+            long maxBytes = int.Parse(match.Groups["bytes"].Value);
             var units = match.Groups["units"].Value.ToUpperInvariant();
             switch (units)
             {
@@ -73,7 +73,7 @@ internal class SplitCommand
                 return ExitCode.CommandLineError;
             }
             var pieceCount = 0;
-            var bytesReadCount = 0;
+            var bytesReadCount = 0L;
 
             await using var reader = File.OpenRead(SourcePath);
 
