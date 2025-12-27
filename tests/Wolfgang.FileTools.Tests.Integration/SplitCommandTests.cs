@@ -176,7 +176,7 @@ public class SplitCommandTests : IDisposable
     public async Task SplitFile_NotExactMultiple_CreatesCorrectNumberOfFiles()
     {
         // Arrange
-        var testFile = CreateTestFile("test.txt", 1500);
+        var testFile = CreateTestFile("test.txt", 1250);
         var command = new SplitCommand { SourcePath = testFile, MaxBytes = "500" };
         var console = new TestConsole();
 
@@ -189,7 +189,7 @@ public class SplitCommandTests : IDisposable
         Assert.Equal(3, outputFiles.Length);
         Assert.Equal(500, new FileInfo(outputFiles[0]).Length);
         Assert.Equal(500, new FileInfo(outputFiles[1]).Length);
-        Assert.Equal(500, new FileInfo(outputFiles[2]).Length);
+        Assert.Equal(250, new FileInfo(outputFiles[2]).Length); // Last file has remaining bytes
     }
 
     [Fact]
@@ -377,7 +377,7 @@ public class SplitCommandTests : IDisposable
     {
         var filePath = Path.Combine(_testDirectory, fileName);
         var content = new byte[sizeInBytes];
-        new Random().NextBytes(content);
+        new Random(42).NextBytes(content); // Use fixed seed for reproducibility
         File.WriteAllBytes(filePath, content);
         return filePath;
     }
