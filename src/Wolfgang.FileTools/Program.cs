@@ -11,7 +11,7 @@ namespace Wolfgang.FileTools;
 
 [Command
 (
-    Description = "A template for a console application complete with command line parse, logging, DI and more.",
+    Description = "A command-line file tools utility (e.g., file splitting) with command line parsing, logging, dependency injection, and more.",
 
     UnrecognizedArgumentHandling = UnrecognizedArgumentHandling.Throw,
 
