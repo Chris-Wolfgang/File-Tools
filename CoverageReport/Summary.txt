@@ -1,0 +1,28 @@
+Summary
+  Generated on: 12/27/2025 - 20:54:03
+  Coverage date: 12/27/2025 - 20:53:47
+  Parser: Cobertura
+  Assemblies: 1
+  Classes: 6
+  Files: 6
+  Line coverage: 29.4%
+  Covered lines: 51
+  Uncovered lines: 122
+  Coverable lines: 173
+  Total lines: 419
+  Branch coverage: 63.3% (19 of 30)
+  Covered branches: 19
+  Total branches: 30
+  Method coverage: 35.7% (5 of 14)
+  Full method coverage: 28.5% (4 of 14)
+  Covered methods: 5
+  Fully covered methods: 4
+  Total methods: 14
+
+file-tools                                                    29.4%
+  Wolfgang.FileTools.Command.SplitCommand                       94%
+  Wolfgang.FileTools.ExitCode                                  100%
+  Wolfgang.FileTools.Framework.ConsoleColors                     0%
+  Wolfgang.FileTools.Framework.IHostBuilderExtensions            0%
+  Wolfgang.FileTools.Framework.IServiceCollectionExtensions      0%
+  Wolfgang.FileTools.Program                                     0%
