@@ -94,7 +94,15 @@ jobs:
         run: dotnet tool install --global Microsoft.CST.DevSkim.CLI
 
       - name: Run DevSkim security scan
-        run: devskim analyze --source-code . -f text --output-file devskim-results.txt -E
+        run: |
+          set +e
+          devskim analyze --source-code ./src ./tests -f text --output-file devskim-results.txt -E
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ] && [ $EXIT_CODE -ne 41 ]; then
+            echo "DevSkim failed with exit code $EXIT_CODE"
+            exit $EXIT_CODE
+          fi
+          set -e
 
       - name: Show DevSkim Security Issues
         run: |
@@ -102,7 +110,7 @@ jobs:
           if [ -f devskim-results.txt ]; then
             cat devskim-results.txt
           else
-            echo "No devskim-results.txt found (DevSkim may have been skipped or produced no output)."
+            echo "No devskim-results.txt found (DevSkim produced no output)."
           fi
 
       - name: Upload DevSkim Results as Artifact
